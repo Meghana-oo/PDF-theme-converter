@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Nocturne — PDF Dark Mode</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.min.js"></script>
+<style>
+  :root{
+    --paper:#f2ede4;
+    --ink:#1c1a17;
+    --accent:#8a5cf6;
+    --accent-dim:#6d47c9;
+    --nocturne-bg:#141216;
+    --nocturne-text:#eae6e0;
+    --rule:#d8d0c2;
+    --mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--paper);
+    color:var(--ink);
+    font-family: Georgia, 'Iowan Old Style', serif;
+    min-height:100vh;
+    transition: background .4s ease, color .4s ease;
+  }
+  body.night{
+    background:var(--nocturne-bg);
+    color:var(--nocturne-text);
+  }
+  header{
+    padding:2.5rem 2rem 1.5rem;
+    max-width:900px;
+    margin:0 auto;
+    border-bottom:1px solid var(--rule);
+  }
+  body.night header{ border-bottom-color:#2c2830; }
+  .eyebrow{
+    font-family: var(--mono);
+    font-size:.72rem;
+    letter-spacing:.18em;
+    text-transform:uppercase;
+    color:var(--accent-dim);
+    margin:0 0 .6rem;
+  }
+  h1{
+    font-size:2.4rem;
+    margin:0 0 .4rem;
+    font-weight:400;
+    letter-spacing:-.01em;
+  }
+  header p{
+    font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+    font-size:.98rem;
+    line-height:1.5;
+    max-width:52ch;
+    opacity:.8;
+    margin:0;
+  }
+  main{
+    max-width:900px;
+    margin:0 auto;
+    padding:2rem;
+    display:grid;
+    gap:1.5rem;
+  }
+  .panel{
+    border:1px solid var(--rule);
+    border-radius:2px;
+    padding:1.5rem;
+    font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+  }
+  body.night .panel{ border-color:#2c2830; }
+
+  .drop{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    gap:.75rem;
+    padding:3rem 1.5rem;
+    border:1.5px dashed var(--rule);
+    border-radius:2px;
+    cursor:pointer;
+    text-align:center;
+  }
+  body.night .drop{ border-color:#3a3542; }
+  .drop.dragover{ border-color:var(--accent); }
+  .drop small{ opacity:.65; font-size:.82rem; }
+  input[type=file]{ display:none; }
+
+  .btn{
+    font-family: var(--mono);
+    font-size:.78rem;
+    letter-spacing:.06em;
+    text-transform:uppercase;
+    background:var(--accent);
+    color:#fff;
+    border:none;
+    padding:.7rem 1.2rem;
+    border-radius:2px;
+    cursor:pointer;
+  }
+  .btn:hover{ background:var(--accent-dim); }
+  .btn:disabled{ opacity:.4; cursor:not-allowed; }
+  .btn.ghost{
+    background:transparent;
+    color:var(--ink);
+    border:1px solid var(--rule);
+  }
+  body.night .btn.ghost{ color:var(--nocturne-text); border-color:#3a3542; }
+
+  .controls{
+    display:flex;
+    flex-wrap:wrap;
+    align-items:center;
+    gap:1rem;
+    justify-content:space-between;
+  }
+  .toggle-row{ display:flex; align-items:center; gap:.6rem; font-family:var(--mono); font-size:.8rem; }
+  .swatches{ display:flex; gap:.5rem; align-items:center; }
+  .swatches label{ font-family:var(--mono); font-size:.72rem; opacity:.7; }
+  input[type=color]{ width:28px; height:28px; border:1px solid var(--rule); border-radius:2px; padding:0; background:none; cursor:pointer; }
+
+  #previewWrap{
+    display:flex;
+    justify-content:center;
+    padding:1rem 0;
+    overflow:auto;
+    max-height:70vh;
+  }
+  #previewCanvas{
+    max-width:100%;
+    box-shadow:0 8px 30px rgba(0,0,0,.25);
+    filter:none;
+    transition:filter .3s ease;
+  }
+  #previewCanvas.inverted{
+    filter: invert(1) hue-rotate(180deg);
+  }
+  .pageNav{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:1rem;
+    font-family:var(--mono);
+    font-size:.8rem;
+  }
+  .status{
+    font-family:var(--mono);
+    font-size:.78rem;
+    opacity:.75;
+    min-height:1.2em;
+  }
+  .status.err{ color:#c0392b; }
+  footer{
+    max-width:900px;
+    margin:0 auto;
+    padding:1rem 2rem 3rem;
+    font-family: var(--mono);
+    font-size:.72rem;
+    opacity:.5;
+  }
+  a{ color:var(--accent-dim); }
+</style>
+</head>
+<body>
+
+<header>
+  <p class="eyebrow">Local PDF Utility</p>
+  <h1>Nocturne</h1>
+  <p>Upload a PDF, preview it as a quick client-side inversion, then export a real
+  dark-mode copy — one where the background and text colors are actually rewritten
+  in the file, not just filtered on screen.</p>
+</header>
+
+<main>
+
+  <div class="panel">
+    <div id="drop" class="drop">
+      <strong>Drop a PDF here, or click to choose one</strong>
+      <small>Processed locally in your browser for preview. Nothing is uploaded until you click Export.</small>
+      <input type="file" id="fileInput" accept="application/pdf" />
+    </div>
+    <div id="fileStatus" class="status" style="margin-top:.75rem;"></div>
+  </div>
+
+  <div class="panel" id="previewPanel" style="display:none;">
+    <div class="controls">
+      <div class="toggle-row">
+        <label>
+          <input type="checkbox" id="invertToggle" />
+          Preview dark mode (quick filter)
+        </label>
+      </div>
+      <div class="swatches">
+        <label>BG</label>
+        <input type="color" id="bgColor" value="#1a1a1e" />
+        <label>Text</label>
+        <input type="color" id="textColor" value="#ebebe6" />
+      </div>
+    </div>
+
+    <div id="previewWrap">
+      <canvas id="previewCanvas"></canvas>
+    </div>
+
+    <div class="pageNav">
+      <button class="btn ghost" id="prevPage">&larr; Prev</button>
+      <span id="pageIndicator">Page 1 / 1</span>
+      <button class="btn ghost" id="nextPage">Next &rarr;</button>
+    </div>
+  </div>
+
+  <div class="panel" id="exportPanel" style="display:none;">
+    <div class="controls">
+      <div class="status" id="exportStatus">Ready to export a real dark-mode PDF.</div>
+      <button class="btn" id="exportBtn">Export Dark PDF</button>
+    </div>
+  </div>
+
+</main>
+
+<footer>
+  API: <span id="apiBase">http://localhost:8000</span> — edit <code>API_BASE</code> in index.html to point elsewhere.
+</footer>
+
+<script>
+// Point this at your running backend (see backend/app.py). Defaults to local dev.
+const API_BASE = "http://localhost:8000";
+document.getElementById("apiBase").textContent = API_BASE;
+
+pdfjsLib.GlobalWorkerOptions.workerSrc =
+  "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.worker.min.js";
+
+const drop = document.getElementById("drop");
+const fileInput = document.getElementById("fileInput");
+const fileStatus = document.getElementById("fileStatus");
+const previewPanel = document.getElementById("previewPanel");
+const exportPanel = document.getElementById("exportPanel");
+const canvas = document.getElementById("previewCanvas");
+const ctx = canvas.getContext("2d");
+const invertToggle = document.getElementById("invertToggle");
+const pageIndicator = document.getElementById("pageIndicator");
+const prevPageBtn = document.getElementById("prevPage");
+const nextPageBtn = document.getElementById("nextPage");
+const exportBtn = document.getElementById("exportBtn");
+const exportStatus = document.getElementById("exportStatus");
+const bgColorInput = document.getElementById("bgColor");
+const textColorInput = document.getElementById("textColor");
+
+let currentFile = null;
+let pdfDoc = null;
+let currentPage = 1;
+
+// --- Drag & drop / click-to-choose wiring ---
+drop.addEventListener("click", () => fileInput.click());
+drop.addEventListener("dragover", (e) => { e.preventDefault(); drop.classList.add("dragover"); });
+drop.addEventListener("dragleave", () => drop.classList.remove("dragover"));
+drop.addEventListener("drop", (e) => {
+  e.preventDefault();
+  drop.classList.remove("dragover");
+  const file = e.dataTransfer.files[0];
+  if (file) handleFile(file);
+});
+fileInput.addEventListener("change", (e) => {
+  const file = e.target.files[0];
+  if (file) handleFile(file);
+});
+
+invertToggle.addEventListener("change", () => {
+  canvas.classList.toggle("inverted", invertToggle.checked);
+  document.body.classList.toggle("night", invertToggle.checked);
+});
+
+async function handleFile(file) {
+  if (file.type !== "application/pdf") {
+    setStatus("That doesn't look like a PDF.", true);
+    return;
+  }
+  currentFile = file;
+  setStatus(`Loaded "${file.name}" (${(file.size / 1024).toFixed(0)} KB)`);
+
+  const arrayBuffer = await file.arrayBuffer();
+  pdfDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  currentPage = 1;
+  await renderPage(currentPage);
+
+  previewPanel.style.display = "block";
+  exportPanel.style.display = "block";
+}
+
+async function renderPage(num) {
+  const page = await pdfDoc.getPage(num);
+  const viewport = page.getViewport({ scale: 1.4 });
+  canvas.width = viewport.width;
+  canvas.height = viewport.height;
+  await page.render({ canvasContext: ctx, viewport }).promise;
+  pageIndicator.textContent = `Page ${num} / ${pdfDoc.numPages}`;
+}
+
+prevPageBtn.addEventListener("click", async () => {
+  if (currentPage > 1) { currentPage--; await renderPage(currentPage); }
+});
+nextPageBtn.addEventListener("click", async () => {
+  if (currentPage < pdfDoc.numPages) { currentPage++; await renderPage(currentPage); }
+});
+
+function setStatus(msg, isErr = false) {
+  fileStatus.textContent = msg;
+  fileStatus.classList.toggle("err", isErr);
+}
+
+// --- Real export: sends file to backend, which rewrites colors and returns a new PDF ---
+exportBtn.addEventListener("click", async () => {
+  if (!currentFile) return;
+  exportBtn.disabled = true;
+  exportStatus.textContent = "Processing on server… this can take a few seconds for longer PDFs.";
+
+  try {
+    const formData = new FormData();
+    formData.append("file", currentFile);
+    formData.append("bg_color", bgColorInput.value);
+    formData.append("text_color", textColorInput.value);
+
+    const res = await fetch(`${API_BASE}/api/dark-mode`, {
+      method: "POST",
+      body: formData,
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || `Server returned ${res.status}`);
+    }
+
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = currentFile.name.replace(/\.pdf$/i, "") + "-dark.pdf";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+
+    exportStatus.textContent = "Done — your dark-mode PDF downloaded.";
+  } catch (e) {
+    exportStatus.textContent = `Export failed: ${e.message}`;
+  } finally {
+    exportBtn.disabled = false;
+  }
+});
+</script>
+
+</body>
+</html>
